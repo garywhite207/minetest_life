@@ -1,3 +1,5 @@
+local fs_helpers = pipeworks.fs_helpers
+
 local function delay(x)
 	return (function() return x end)
 end
@@ -54,6 +56,7 @@ end
 -- todo SOON: this function has *way too many* parameters
 local function grabAndFire(data,slotseq_mode,exmatch_mode,filtmeta,frominv,frominvname,frompos,fromnode,filterfor,fromtube,fromdef,dir,fakePlayer,all,digiline)
 	local sposes = {}
+	if not frominvname or not frominv:get_list(frominvname) then return end
 	for spos,stack in ipairs(frominv:get_list(frominvname)) do
 		local matches
 		if filterfor == "" then
@@ -112,7 +115,7 @@ local function grabAndFire(data,slotseq_mode,exmatch_mode,filtmeta,frominv,fromi
 			local stack = frominv:get_stack(frominvname, spos)
 			local doRemove = stack:get_count()
 			if fromtube.can_remove then
-				doRemove = fromtube.can_remove(frompos, fromnode, stack, dir)
+				doRemove = fromtube.can_remove(frompos, fromnode, stack, dir, frominvname, spos)
 			elseif fromdef.allow_metadata_inventory_take then
 				doRemove = fromdef.allow_metadata_inventory_take(frompos, frominvname,spos, stack, fakePlayer)
 			end
@@ -143,7 +146,7 @@ local function grabAndFire(data,slotseq_mode,exmatch_mode,filtmeta,frominv,fromi
 				end
 				if fromtube.remove_items then
 					-- it could be the entire stack...
-					item = fromtube.remove_items(frompos, fromnode, stack, dir, count)
+					item = fromtube.remove_items(frompos, fromnode, stack, dir, count, frominvname, spos)
 				else
 					item = stack:take_item(count)
 					frominv:set_stack(frominvname, spos, stack)
@@ -153,7 +156,7 @@ local function grabAndFire(data,slotseq_mode,exmatch_mode,filtmeta,frominv,fromi
 				end
 				local pos = vector.add(frompos, vector.multiply(dir, 1.4))
 				local start_pos = vector.add(frompos, dir)
-				local item1 = pipeworks.tube_inject_item(pos, start_pos, dir, item)
+				local item1 = pipeworks.tube_inject_item(pos, start_pos, dir, item, fakePlayer:get_player_name())
 				return true-- only fire one item, please
 			end
 	end
@@ -164,17 +167,50 @@ local function punch_filter(data, filtpos, filtnode, msg)
 	local filtmeta = minetest.get_meta(filtpos)
 	local filtinv = filtmeta:get_inventory()
 	local owner = filtmeta:get_string("owner")
-	local fakePlayer = {
-		get_player_name = delay(owner),
-		is_fake_player = ":pipeworks",
-	} -- TODO: use a mechanism as the wielder one
-	local dir = minetest.facedir_to_right_dir(filtnode.param2)
+	local fakePlayer = pipeworks.create_fake_player({
+		name = owner
+	})
+	local dir = pipeworks.facedir_to_right_dir(filtnode.param2)
 	local frompos = vector.subtract(filtpos, dir)
 	local fromnode = minetest.get_node(frompos)
 	if not fromnode then return end
 	local fromdef = minetest.registered_nodes[fromnode.name]
 	if not fromdef then return end
 	local fromtube = fromdef.tube
+	local input_special_cases = {
+		["technic:mv_furnace"] = "dst",
+		["technic:mv_furnace_active"] = "dst",
+		["technic:mv_electric_furnace"] = "dst",
+		["technic:mv_electric_furnace_active"] = "dst",
+		["technic:mv_alloy_furnace"] = "dst",
+		["technic:mv_alloy_furnace_active"] = "dst",
+		["technic:mv_centrifuge"] = "dst",
+		["technic:mv_centrifuge_active"] = "dst",
+		["technic:mv_compressor"] = "dst",
+		["technic:mv_compressor_active"] = "dst",
+		["technic:mv_extractor"] = "dst",
+		["technic:mv_extractor_active"] = "dst",
+		["technic:mv_grinder"] = "dst",
+		["technic:mv_grinder_active"] = "dst",
+		["technic:tool_workshop"] = "src",
+		["technic:mv_freezer"] = "dst",
+		["technic:mv_freezer_active"] = "dst"
+	}
+
+	-- make sure there's something appropriate to inject the item into
+	local todir = pipeworks.facedir_to_right_dir(filtnode.param2)
+	local topos = vector.add(filtpos, todir)
+	local tonode = minetest.get_node(topos)
+	local todef = minetest.registered_nodes[tonode.name]
+
+	if not todef
+	  or not (minetest.get_item_group(tonode.name, "tube") == 1
+			  or minetest.get_item_group(tonode.name, "tubedevice") == 1
+			  or minetest.get_item_group(tonode.name, "tubedevice_receiver") == 1) then
+		return
+	end
+
+	if fromtube then fromtube.input_inventory = input_special_cases[fromnode.name] or fromtube.input_inventory end
 	if not (fromtube and fromtube.input_inventory) then return end
 
 	local slotseq_mode
@@ -183,7 +219,7 @@ local function punch_filter(data, filtpos, filtnode, msg)
 	local filters = {}
 	if data.digiline then
 		local function add_filter(name, group, count, wear, metadata)
-			table.insert(filters, {name = name, group = group, count = count, wear = wear, metadata = metadata})
+			table.insert(filters, {name = name, group = group, count = tonumber(count), wear = wear, metadata = metadata})
 		end
 
 		local function add_itemstring_filter(filter)
@@ -281,8 +317,16 @@ local function punch_filter(data, filtpos, filtnode, msg)
 		exact_match = filtmeta:get_int("exmatch_mode")
 	end
 
-	local frommeta = minetest.get_meta(frompos)
-	local frominv = frommeta:get_inventory()
+	local frominv
+	if fromtube.return_input_invref then
+		frominv = fromtube.return_input_invref(frompos, fromnode, dir, owner)
+		if not frominv then
+			return
+		end
+	else
+		local frommeta = minetest.get_meta(frompos)
+		frominv = frommeta:get_inventory()
+	end
 	if fromtube.before_filter then fromtube.before_filter(frompos) end
 	for _, frominvname in ipairs(type(fromtube.input_inventory) == "table" and fromtube.input_inventory or {fromtube.input_inventory}) do
 		local done = false
@@ -341,13 +385,24 @@ for _, data in ipairs({
 			pipeworks.after_place(pos)
 		end,
 		after_dig_node = pipeworks.after_dig,
+		on_rotate = pipeworks.on_rotate,
 		allow_metadata_inventory_put = function(pos, listname, index, stack, player)
-			if not pipeworks.may_configure(pos, player) then return 0 end
-			return stack:get_count()
+			if not pipeworks.may_configure(pos, player) then
+				return 0
+			end
+			local inv = minetest.get_meta(pos):get_inventory()
+			inv:set_stack("main", index, stack)
+			return 0
 		end,
 		allow_metadata_inventory_take = function(pos, listname, index, stack, player)
-			if not pipeworks.may_configure(pos, player) then return 0 end
-			return stack:get_count()
+			if not pipeworks.may_configure(pos, player) then
+				return 0
+			end
+			local inv = minetest.get_meta(pos):get_inventory()
+			local fake_stack = inv:get_stack("main", index)
+			fake_stack:take_item(stack:get_count())
+			inv:set_stack("main", index, fake_stack)
+			return 0
 		end,
 		allow_metadata_inventory_move = function(pos, from_list, from_index, to_list, to_index, count, player)
 			if not pipeworks.may_configure(pos, player) then return 0 end
@@ -420,18 +475,18 @@ end
 minetest.register_craft( {
 	output = "pipeworks:filter 2",
 	recipe = {
-	        { "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" },
-	        { "group:stick", "default:mese_crystal", "homedecor:plastic_sheeting" },
-	        { "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" }
+	        { "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" },
+	        { "group:stick", "default:mese_crystal", "basic_materials:plastic_sheet" },
+	        { "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" }
 	},
 })
 
 minetest.register_craft( {
 	output = "pipeworks:mese_filter 2",
 	recipe = {
-	        { "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" },
-	        { "group:stick", "default:mese", "homedecor:plastic_sheeting" },
-	        { "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" }
+	        { "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" },
+	        { "group:stick", "default:mese", "basic_materials:plastic_sheet" },
+	        { "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" }
 	},
 })
 
@@ -439,9 +494,70 @@ if minetest.get_modpath("digilines") then
 	minetest.register_craft( {
 		output = "pipeworks:digiline_filter 2",
 		recipe = {
-			{ "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" },
-			{ "group:stick", "digilines:wire_std_00000000", "homedecor:plastic_sheeting" },
-			{ "default:steel_ingot", "default:steel_ingot", "homedecor:plastic_sheeting" }
+			{ "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" },
+			{ "group:stick", "digilines:wire_std_00000000", "basic_materials:plastic_sheet" },
+			{ "default:steel_ingot", "default:steel_ingot", "basic_materials:plastic_sheet" }
 		},
 	})
 end
+
+--[[
+In the past the filter-injectors had real items in their inventories. This code
+puts them to the input to the filter-injector if possible. Else the items are
+dropped.
+]]
+local function put_to_inputinv(pos, node, filtmeta, list)
+	local dir = pipeworks.facedir_to_right_dir(node.param2)
+	local frompos = vector.subtract(pos, dir)
+	local fromnode = minetest.get_node(frompos)
+	local fromdef = minetest.registered_nodes[fromnode.name]
+	if not fromdef or not fromdef.tube then
+		return
+	end
+	local fromtube = fromdef.tube
+	local frominv
+	if fromtube.return_input_invref then
+		local owner = filtmeta:get_string("owner")
+		frominv = fromtube.return_input_invref(frompos, fromnode, dir, owner)
+		if not frominv then
+			return
+		end
+	else
+		frominv = minetest.get_meta(frompos):get_inventory()
+	end
+	local listname = type(fromtube.input_inventory) == "table" and
+			fromtube.input_inventory[1] or fromtube.input_inventory
+	if not listname then
+		return
+	end
+	for i = 1, #list do
+		local item = list[i]
+		if not item:is_empty() then
+			local leftover = frominv:add_item(listname, item)
+			if not leftover:is_empty() then
+				minetest.add_item(pos, leftover)
+			end
+		end
+	end
+	return true
+end
+minetest.register_lbm({
+	label = "Give back items of old filters that had real inventories",
+	name = "pipeworks:give_back_old_filter_items",
+	nodenames = {"pipeworks:filter", "pipeworks:mese_filter"},
+	run_at_every_load = false,
+	action = function(pos, node)
+		local meta = minetest.get_meta(pos)
+		local list = meta:get_inventory():get_list("main")
+		if put_to_inputinv(pos, node, meta, list) then
+			return
+		end
+		pos.y = pos.y + 1
+		for i = 1, #list do
+			local item = list[i]
+			if not item:is_empty() then
+				minetest.add_item(pos, item)
+			end
+		end
+	end,
+})
