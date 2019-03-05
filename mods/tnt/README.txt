@@ -1,37 +1,57 @@
 Minetest Game mod: tnt
 ======================
-by PilzAdam and ShadowNinja
+See license.txt for license information.
 
-Introduction:
+Authors of source code
+----------------------
+PilzAdam (MIT)
+ShadowNinja (MIT)
+sofar (sofar@foo-projects.org) (MIT)
+Various Minetest developers and contributors (MIT)
+
+Authors of media (textures)
+---------------------------
+BlockMen (CC BY-SA 3.0):
+All textures not mentioned below.
+
+ShadowNinja (CC BY-SA 3.0):
+tnt_smoke.png
+
+Wuzzy (CC BY-SA 3.0):
+All gunpowder textures except tnt_gunpowder_inventory.png.
+
+sofar (sofar@foo-projects.org) (CC BY-SA 3.0):
+tnt_blast.png
+
+paramat (CC BY-SA 3.0)
+tnt_tnt_stick.png - Derived from a texture by benrob0329.
+
+Introduction
+------------
 This mod adds TNT to Minetest. TNT is a tool to help the player
 in mining.
 
 How to use the mod:
-Craft gunpowder by placing coal and gravel in the crafting area. The
-gunpowder can be used to craft TNT or as fuze for TNT. To craft TNT
-surround gunpowder with 4 wood in a + shape.
-There are different ways to blow up TNT:
+
+Craft gunpowder by placing coal and gravel in the crafting area.
+The gunpowder can be used to craft TNT sticks or as a fuse trail for TNT.
+
+To craft 2 TNT sticks:
+G_G
+GPG
+G_G
+G = gunpowder
+P = paper
+The sticks are not usable as an explosive.
+
+Craft TNT from 9 TNT sticks.
+
+There are different ways to ignite TNT:
   1. Hit it with a torch.
-  2. Hit a gunpowder fuze that leads to a TNT block with a torch.
-  3. Activate it with mesecons (fastest way)
-Be aware of the damage radius of 7 blocks!
+  2. Hit a gunpowder fuse trail that leads to TNT with a torch or
+     flint-and-steel.
+  3. Activate it with mesecons (fastest way).
 
-License:
-WTFPL (see below)
-
-See also:
-http://minetest.net/
-
-         DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-                    Version 2, December 2004
-
- Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
-
- Everyone is permitted to copy and distribute verbatim or modified
- copies of this license document, and changing it is allowed as long
- as the name is changed.
-
-            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-
-  0. You just DO WHAT THE FUCK YOU WANT TO.
+For 1 TNT:
+Node destruction radius is 3 nodes.
+Player and object damage radius is 6 nodes.
