@@ -3,46 +3,43 @@
 -- Formspecs
 --
 
-local function active_formspec(fuel_percent, item_percent)
-	local formspec = 
-		"size[8,8.5]"..
-		default.gui_bg..
-		default.gui_bg_img..
-		default.gui_slots..
-		"list[current_name;src;2.75,0.5;1,1;]"..
-		"list[current_name;fuel;2.75,2.5;1,1;]"..
+function default.get_furnace_active_formspec(fuel_percent, item_percent)
+	return "size[8,8.5]"..
+		"list[context;src;2.75,0.5;1,1;]"..
+		"list[context;fuel;2.75,2.5;1,1;]"..
 		"image[2.75,1.5;1,1;default_furnace_fire_bg.png^[lowpart:"..
 		(100-fuel_percent)..":default_furnace_fire_fg.png]"..
 		"image[3.75,1.5;1,1;gui_furnace_arrow_bg.png^[lowpart:"..
 		(item_percent)..":gui_furnace_arrow_fg.png^[transformR270]"..
-		"list[current_name;dst;4.75,0.96;2,2;]"..
+		"list[context;dst;4.75,0.96;2,2;]"..
 		"list[current_player;main;0,4.25;8,1;]"..
 		"list[current_player;main;0,5.5;8,3;8]"..
-		"listring[current_name;dst]"..
+		"listring[context;dst]"..
 		"listring[current_player;main]"..
-		"listring[current_name;src]"..
+		"listring[context;src]"..
+		"listring[current_player;main]"..
+		"listring[context;fuel]"..
 		"listring[current_player;main]"..
 		default.get_hotbar_bg(0, 4.25)
-	return formspec
 end
 
-local inactive_formspec =
-	"size[8,8.5]"..
-	default.gui_bg..
-	default.gui_bg_img..
-	default.gui_slots..
-	"list[current_name;src;2.75,0.5;1,1;]"..
-	"list[current_name;fuel;2.75,2.5;1,1;]"..
-	"image[2.75,1.5;1,1;default_furnace_fire_bg.png]"..
-	"image[3.75,1.5;1,1;gui_furnace_arrow_bg.png^[transformR270]"..
-	"list[current_name;dst;4.75,0.96;2,2;]"..
-	"list[current_player;main;0,4.25;8,1;]"..
-	"list[current_player;main;0,5.5;8,3;8]"..
-	"listring[current_name;dst]"..
-	"listring[current_player;main]"..
-	"listring[current_name;src]"..
-	"listring[current_player;main]"..
-	default.get_hotbar_bg(0, 4.25)
+function default.get_furnace_inactive_formspec()
+	return "size[8,8.5]"..
+		"list[context;src;2.75,0.5;1,1;]"..
+		"list[context;fuel;2.75,2.5;1,1;]"..
+		"image[2.75,1.5;1,1;default_furnace_fire_bg.png]"..
+		"image[3.75,1.5;1,1;gui_furnace_arrow_bg.png^[transformR270]"..
+		"list[context;dst;4.75,0.96;2,2;]"..
+		"list[current_player;main;0,4.25;8,1;]"..
+		"list[current_player;main;0,5.5;8,3;8]"..
+		"listring[context;dst]"..
+		"listring[current_player;main]"..
+		"listring[context;src]"..
+		"listring[current_player;main]"..
+		"listring[context;fuel]"..
+		"listring[current_player;main]"..
+		default.get_hotbar_bg(0, 4.25)
+end
 
 --
 -- Node callback functions that are the same for active and inactive furnace
@@ -109,74 +106,100 @@ local function furnace_node_timer(pos, elapsed)
 	local fuel_totaltime = meta:get_float("fuel_totaltime") or 0
 
 	local inv = meta:get_inventory()
-	local srclist = inv:get_list("src")
-	local fuellist = inv:get_list("fuel")
-	local dstlist = inv:get_list("dst")
+	local srclist, fuellist
 
-	--
-	-- Cooking
-	--
+	local cookable, cooked
+	local fuel
 
-	-- Check if we have cookable content
-	local cooked, aftercooked = minetest.get_craft_result({method = "cooking", width = 1, items = srclist})
-	local cookable = true
+	local update = true
+	while elapsed > 0 and update do
+		update = false
 
-	if cooked.time == 0 then
-		cookable = false
-	end
+		srclist = inv:get_list("src")
+		fuellist = inv:get_list("fuel")
 
-	-- Check if we have enough fuel to burn
-	if fuel_time < fuel_totaltime then
-		-- The furnace is currently active and has enough fuel
-		fuel_time = fuel_time + 1
+		--
+		-- Cooking
+		--
 
-		-- If there is a cookable item then check if it is ready yet
-		if cookable then
-			src_time = src_time + 1
-			if src_time >= cooked.time then
-				-- Place result in dst list if possible
-				if inv:room_for_item("dst", cooked.item) then
-					inv:add_item("dst", cooked.item)
-					inv:set_stack("src", 1, aftercooked.items[1])
-					src_time = 0
+		-- Check if we have cookable content
+		local aftercooked
+		cooked, aftercooked = minetest.get_craft_result({method = "cooking", width = 1, items = srclist})
+		cookable = cooked.time ~= 0
+
+		local el = math.min(elapsed, fuel_totaltime - fuel_time)
+		if cookable then -- fuel lasts long enough, adjust el to cooking duration
+			el = math.min(el, cooked.time - src_time)
+		end
+
+		-- Check if we have enough fuel to burn
+		if fuel_time < fuel_totaltime then
+			-- The furnace is currently active and has enough fuel
+			fuel_time = fuel_time + el
+			-- If there is a cookable item then check if it is ready yet
+			if cookable then
+				src_time = src_time + el
+				if src_time >= cooked.time then
+					-- Place result in dst list if possible
+					if inv:room_for_item("dst", cooked.item) then
+						inv:add_item("dst", cooked.item)
+						inv:set_stack("src", 1, aftercooked.items[1])
+						src_time = src_time - cooked.time
+						update = true
+					end
+				else
+					-- Item could not be cooked: probably missing fuel
+					update = true
 				end
 			end
-		end
-	else
-		-- Furnace ran out of fuel
-		if cookable then
-			-- We need to get new fuel
-			local fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
-
-			if fuel.time == 0 then
-				-- No valid fuel in fuel list
-				fuel_totaltime = 0
-				fuel_time = 0
-				src_time = 0
-			else
-				-- Take fuel from fuel list
-				inv:set_stack("fuel", 1, afterfuel.items[1])
-
-				fuel_totaltime = fuel.time
-				fuel_time = 0
-			end
 		else
-			-- We don't need to get new fuel since there is no cookable item
-			fuel_totaltime = 0
+			-- Furnace ran out of fuel
+			if cookable then
+				-- We need to get new fuel
+				local afterfuel
+				fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
+
+				if fuel.time == 0 then
+					-- No valid fuel in fuel list
+					fuel_totaltime = 0
+					src_time = 0
+				else
+					-- Take fuel from fuel list
+					inv:set_stack("fuel", 1, afterfuel.items[1])
+					update = true
+					fuel_totaltime = fuel.time + (fuel_totaltime - fuel_time)
+				end
+			else
+				-- We don't need to get new fuel since there is no cookable item
+				fuel_totaltime = 0
+				src_time = 0
+			end
 			fuel_time = 0
-			src_time = 0
 		end
+
+		elapsed = elapsed - el
+	end
+
+	if fuel and fuel_totaltime > fuel.time then
+		fuel_totaltime = fuel.time
+	end
+	if srclist[1]:is_empty() then
+		src_time = 0
 	end
 
 	--
 	-- Update formspec, infotext and node
 	--
-	local formspec = inactive_formspec
-	local item_state = ""
+	local formspec
+	local item_state
 	local item_percent = 0
 	if cookable then
 		item_percent = math.floor(src_time / cooked.time * 100)
-		item_state = item_percent .. "%"
+		if item_percent > 100 then
+			item_state = "100% (output full)"
+		else
+			item_state = item_percent .. "%"
+		end
 	else
 		if srclist[1]:is_empty() then
 			item_state = "Empty"
@@ -186,14 +209,14 @@ local function furnace_node_timer(pos, elapsed)
 	end
 
 	local fuel_state = "Empty"
-	local active = "inactive "
+	local active = "inactive"
 	local result = false
 
-	if fuel_time <= fuel_totaltime and fuel_totaltime ~= 0 then
-		active = "active "
+	if fuel_totaltime ~= 0 then
+		active = "active"
 		local fuel_percent = math.floor(fuel_time / fuel_totaltime * 100)
 		fuel_state = fuel_percent .. "%"
-		formspec = active_formspec(fuel_percent, item_percent)
+		formspec = default.get_furnace_active_formspec(fuel_percent, item_percent)
 		swap_node(pos, "default:furnace_active")
 		-- make sure timer restarts automatically
 		result = true
@@ -201,13 +224,14 @@ local function furnace_node_timer(pos, elapsed)
 		if not fuellist[1]:is_empty() then
 			fuel_state = "0%"
 		end
+		formspec = default.get_furnace_inactive_formspec()
 		swap_node(pos, "default:furnace")
 		-- stop timer on the inactive furnace
-		local timer = minetest.get_node_timer(pos)
-		timer:stop()
+		minetest.get_node_timer(pos):stop()
 	end
 
-	local infotext = "Furnace " .. active .. "(Item: " .. item_state .. "; Fuel: " .. fuel_state .. ")"
+	local infotext = "Furnace " .. active .. "\n(Item: " .. item_state ..
+		"; Fuel: " .. fuel_state .. ")"
 
 	--
 	-- Set meta values
@@ -244,7 +268,7 @@ minetest.register_node("default:furnace", {
 
 	on_construct = function(pos)
 		local meta = minetest.get_meta(pos)
-		meta:set_string("formspec", inactive_formspec)
+		meta:set_string("formspec", default.get_furnace_inactive_formspec())
 		local inv = meta:get_inventory()
 		inv:set_size('src', 1)
 		inv:set_size('fuel', 1)
@@ -252,13 +276,11 @@ minetest.register_node("default:furnace", {
 	end,
 
 	on_metadata_inventory_move = function(pos)
-		local timer = minetest.get_node_timer(pos)
-		timer:start(1.0)
+		minetest.get_node_timer(pos):start(1.0)
 	end,
 	on_metadata_inventory_put = function(pos)
 		-- start timer function, it will sort out whether furnace can burn or not.
-		local timer = minetest.get_node_timer(pos)
-		timer:start(1.0)
+		minetest.get_node_timer(pos):start(1.0)
 	end,
 	on_blast = function(pos)
 		local drops = {}
@@ -307,4 +329,3 @@ minetest.register_node("default:furnace_active", {
 	allow_metadata_inventory_move = allow_metadata_inventory_move,
 	allow_metadata_inventory_take = allow_metadata_inventory_take,
 })
-
