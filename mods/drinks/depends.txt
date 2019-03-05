@@ -1,8 +1,13 @@
 bucket
 default
 vessels
+stairs
 hunger?
 thirsty?
 plantlife?
 farming_plus?
 crops?
+farming?
+minetest_doc_modpack?
+fruits?
+ethereal?
