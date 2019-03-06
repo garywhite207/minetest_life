@@ -20,4 +20,4 @@ bakedclay by tenplus1
 
 All mods used in this subgame are used here under their original licenses. I do not take any credit whatsoever for any of the content in these mods. Please see the license file inside each mod for their respective terms.
 
-The header.png file in /menu is a modified version of 
+The header.png file in /menu is a modified version of the header.png file for minetest_game, and as such is distributed under the same CC-BY-SA 3.0 license.
