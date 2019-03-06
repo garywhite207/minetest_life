@@ -15,7 +15,8 @@ pipeworks and unified_inventory by VanessaE
 food by rubenwardy
 waffles & christmas_decor by GreenDimond
 bakedclay by tenplus1
-
+hudbars & hbhunger by Wuzzy
+snowdrift by paramat
 
 All mods used in this subgame are used here under their original licenses. I do not take any credit whatsoever for any of the content in these mods. Please see the license file inside each mod for their respective terms.
 
