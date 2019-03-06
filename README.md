@@ -19,3 +19,5 @@ bakedclay by tenplus1
 
 
 All mods used in this subgame are used here under their original licenses. I do not take any credit whatsoever for any of the content in these mods. Please see the license file inside each mod for their respective terms.
+
+The header.png file in /menu is a modified version of 
