@@ -11,7 +11,6 @@ Mods used:
 default minetest_game mods by all the developers of Minetest
 drinks by NathanS21
 farming_plus by PilzAdam
-moreblocks by Calinou
 pipeworks and unified_inventory by VanessaE
 food by rubenwardy
 waffles & christmas_decor by GreenDimond
