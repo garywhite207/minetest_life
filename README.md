@@ -14,6 +14,8 @@ farming_plus by PilzAdam
 moreblocks by Calinou
 pipeworks and unified_inventory by VanessaE
 food by rubenwardy
+waffles & christmas_decor by GreenDimond
+bakedclay by tenplus1
 
 
-All mods are still used under the license of their original release. Please consult the license file in each mod's files for each mod's individual license.
+All mods used in this subgame are used here under their original licenses. I do not take any credit whatsoever for any of the content in these mods. Please see the license file inside each mod for their respective terms.
